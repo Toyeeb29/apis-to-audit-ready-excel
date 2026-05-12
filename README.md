@@ -1,132 +1,189 @@
+# AWS Security Hub → Audit-Ready Excel Pipeline
 
-# AWS Security Hub to Excel Pipeline
+> **GRC Engineering Lab** · Serverless security findings automation · AWS · Python · Infrastructure as Code
 
-*Automated security findings extraction with audit-ready Excel reporting*
+[![AWS](https://img.shields.io/badge/AWS-Lambda%20%7C%20S3%20%7C%20Security%20Hub-FF9900?style=flat&logo=amazon-aws)](https://aws.amazon.com/)
+[![Python](https://img.shields.io/badge/Python-3.9-3776AB?style=flat&logo=python)](https://python.org)
+[![IaC](https://img.shields.io/badge/IaC-CloudFormation-FF4F00?style=flat)](https://aws.amazon.com/cloudformation/)
+[![Status](https://img.shields.io/badge/Lab-Completed-28a745?style=flat)](#)
 
-## Overview
+---
 
-This project demonstrates how to build a serverless pipeline that extracts security findings from AWS Security Hub and generates professional Excel reports. It bridges the gap between GRC engineering automation and audit requirements by delivering data in the format compliance teams actually use.
+## What This Project Does
+
+Security and compliance teams live in spreadsheets — but raw AWS Security Hub findings are JSON blobs buried in a console. This project bridges that gap by building a **fully serverless pipeline** that pulls live Security Hub findings and outputs a formatted, audit-ready Excel workbook automatically.
+
+Built and deployed end-to-end as a GRC engineering lab. **21 real Security Hub findings** were extracted and delivered into a multi-worksheet Excel report in a single Lambda invocation.
+
+---
+
+## Why This Exists — The Human Problem
+
+GRC teams love APIs and automation. Audit teams live in Excel. That gap causes a monthly scramble: export raw findings, reformat them, paste into spreadsheets, fix errors, repeat.
+
+This project solves the **human problem**, not just the technical one. Instead of asking auditors to adopt new tools, it automatically delivers findings in the format they already use — Excel — while letting engineers keep their automated workflows.
+
+**For GRC engineers:**
+- No more manual export and formatting cycles
+- Consistent, reproducible output every time
+- Serverless — pay only for what you use, scales to thousands of findings
+
+**For audit teams:**
+- Reports open directly in Excel, exactly as expected
+- Executive Summary, detailed findings, and pivot analysis in one workbook
+- Remediation links embedded — data is actionable, not just informational
+
+**For the organization:**
+- Auditors spend time analyzing data instead of formatting it
+- Faster audit cycles, fewer back-and-forth emails
+- Consistent documentation reduces audit findings related to report quality
+
+> *The best GRC automation doesn't force people to change workflows — it meets them where they are.*
+
+---
 
 ## Architecture
 
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Security Hub  │───▶│  Lambda Function │───▶│   S3 Bucket     │
-│   Findings      │    │  (Python 3.9)   │    │  (Excel Files)  │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌──────────────────┐    ┌──────────────────────┐
+│  AWS Security   │───▶│  Lambda Function │───▶│  S3 Bucket           │
+│  Hub Findings   │    │  (Python 3.9)    │    │  (Excel Reports)     │
+└─────────────────┘    └──────────────────┘    └──────────────────────┘
+                              ▲
+                    ┌─────────────────┐
+                    │  CloudFormation │
+                    │  (IaC Deploy)   │
+                    └─────────────────┘
 ```
 
-**AWS Services Used:**
-- **AWS Security Hub** - Centralized security findings aggregation
-- **AWS Lambda** - Serverless compute for data processing
-- **Amazon S3** - Storage for generated Excel reports
-- **AWS IAM** - Role-based access control
-- **CloudFormation** - Infrastructure as code deployment
+**AWS Services:**
 
-## Key Features
+| Service | Role |
+|---|---|
+| AWS Security Hub | Centralized findings aggregation source |
+| AWS Lambda | Serverless compute — processes and formats findings |
+| Amazon S3 | Stores generated Excel reports and Lambda source |
+| AWS IAM | Least-privilege role for Lambda execution |
+| AWS CloudFormation | Full infrastructure deployed as code |
 
-- **Multi-worksheet Excel reports** with executive summaries, detailed findings, and pivot analysis
-- **Professional formatting** with conditional formatting and charts
-- **Serverless architecture** for cost-effective, scalable execution
-- **Infrastructure as code** deployment with CloudFormation
-- **Simplified dependencies** using only boto3 and openpyxl
+---
 
-## Quick Deployment
+## Lab Walkthrough — What I Actually Did
 
-**Prerequisites:**
-- AWS CLI installed and configured
-- AWS Security Hub enabled in your account
-- IAM permissions for Lambda, S3, Security Hub, and CloudFormation
-
-**Step 1: Set up your environment**
+### 1. Packaged the Lambda Source
 ```bash
-# Set your AWS profile (replace 'your-profile' with your actual profile name)
-export AWS_PROFILE=your-profile
-
-# Verify AWS access
-aws sts get-caller-identity
+zip -r lambda-source.zip lambda-source/
 ```
 
-**Step 2: Create S3 bucket and upload source**
+### 2. Provisioned S3 & Uploaded Source
 ```bash
-# Create unique S3 bucket
-export BUCKET_NAME="security-hub-reports-$(date +%s)"
-echo "Creating bucket: $BUCKET_NAME"
-aws s3 mb s3://$BUCKET_NAME
-
-# Upload the provided source code package
-aws s3 cp lambda-source.zip s3://$BUCKET_NAME/source/lambda-source.zip
+export SECURITY_REPORT="security-hub-reports-$(date +%s)"
+aws s3 mb s3://$SECURITY_REPORT
+aws s3 cp lambda-source.zip s3://$SECURITY_REPORT/source/lambda-source.zip
 ```
 
-**Step 3: Deploy infrastructure**
+### 3. Deployed Infrastructure via CloudFormation
 ```bash
-# Deploy CloudFormation stack
 aws cloudformation deploy \
   --template-file cloudformation-template.yaml \
   --stack-name security-hub-excel-pipeline \
   --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides S3BucketName=$BUCKET_NAME
-
-echo "Deployment complete!"
+  --parameter-overrides S3BucketName=$SECURITY_REPORT
 ```
+> `Successfully created/updated stack - security-hub-excel-pipeline`
 
-**Step 4: Test the function**
+### 4. Invoked the Lambda & Got Results
 ```bash
-# Generate your first Excel report
 aws lambda invoke \
   --function-name security-hub-excel-generator-cf \
   --output json \
   response.json
-
-# Check the response
-cat response.json
-
-# View generated reports in S3
-aws s3 ls s3://$BUCKET_NAME/reports/
 ```
 
-**Step 5: Download your report**
-```bash
-# List available reports
-aws s3 ls s3://$BUCKET_NAME/reports/
-
-# Download the latest report (replace filename with actual file)
-aws s3 cp s3://$BUCKET_NAME/reports/security_hub_report_YYYYMMDD_HHMMSS.xlsx ./my-security-report.xlsx
-
-# Open the Excel file
-open my-security-report.xlsx  # macOS
-# or
-start my-security-report.xlsx  # Windows
+**Live response:**
+```json
+{
+  "statusCode": 200,
+  "body": {
+    "message": "Security Hub Excel report generated successfully",
+    "bucket": "security-hub-reports-1778547819",
+    "key": "reports/security_hub_report_20260512_012424.xlsx",
+    "findings_count": 21,
+    "worksheets_created": ["Executive Summary", "Detailed Findings", "Pivot Analysis"]
+  }
+}
 ```
 
-## What You'll Get
+### 5. Retrieved the Excel Report
+```bash
+aws s3 cp s3://$SECURITY_REPORT/reports/security_hub_report_20260512_012424.xlsx \
+  ./my-security-report.xlsx
+```
 
-Your Excel reports will include:
+---
 
-- **Executive Summary** - High-level metrics and severity breakdown
-- **Detailed Findings** - Complete finding data with remediation links  
-- **Pivot Analysis** - Interactive tables for deeper analysis
-- **Professional formatting** - Conditional formatting, headers, and charts
+## Output — What the Excel Report Contains
 
-## Cleanup (Optional)
+| Worksheet | Contents |
+|---|---|
+| **Executive Summary** | High-level metrics, severity breakdown, KPIs |
+| **Detailed Findings** | Full finding data with resource IDs and remediation links |
+| **Pivot Analysis** | Interactive tables for slicing findings by severity, service, and status |
 
-To remove all resources when you're done:
+---
+
+## Skills Demonstrated
+
+- **GRC Automation** — Translating raw cloud security data into compliance-ready deliverables
+- **Serverless Architecture** — Lambda + S3 event-driven design with no infrastructure to manage
+- **Infrastructure as Code** — Full stack provisioned via CloudFormation; zero click-ops
+- **AWS CLI Proficiency** — End-to-end deployment, invocation, and retrieval from the terminal
+- **Python & openpyxl** — Programmatic Excel generation with conditional formatting and multi-sheet structure
+- **Security Posture Reporting** — Bridging the gap between engineering tooling and audit requirements
+
+---
+
+## Project Structure
+
+```
+apis-to-audit-ready-excel/
+├── cloudformation-template.yaml   # Full IaC stack definition
+├── lambda-source/                 # Lambda function source code
+│   └── lambda_function.py        # Core findings extraction & Excel logic
+├── lambda-source.zip              # Packaged deployment artifact
+└── README.md
+```
+
+---
+
+## Prerequisites
+
+- AWS CLI installed and configured (`aws sts get-caller-identity` to verify)
+- AWS Security Hub enabled with findings in your account
+- IAM permissions: Lambda, S3, Security Hub, CloudFormation
+
+---
+
+## Cleanup
 
 ```bash
-# Delete the CloudFormation stack
 aws cloudformation delete-stack --stack-name security-hub-excel-pipeline
-
-# Remove S3 bucket and contents
-aws s3 rm s3://$BUCKET_NAME --recursive
-aws s3 rb s3://$BUCKET_NAME
+aws s3 rm s3://$SECURITY_REPORT --recursive
+aws s3 rb s3://$SECURITY_REPORT
 ```
 
-## Troubleshooting
+---
 
-**Common Issues:**
-- **Permission errors**: Ensure your AWS profile has Security Hub, Lambda, S3, and CloudFormation permissions
-- **No findings returned**: Verify Security Hub is enabled and has findings in your account
-- **Deployment failures**: Check CloudFormation stack events for detailed error messages
+## The Bigger Picture — Why This Skill Matters
 
-**Support:**
-This solution has been tested with 1000+ real Security Hub findings and generates professional audit-ready Excel reports.
+Pulling data from AWS APIs and transforming it into Excel isn't just a technical trick — it's becoming a core GRC engineering competency.
+
+Executives report risk in spreadsheets. External audit firms expect Excel deliverables as standard practice. Compliance teams build control matrices, risk registers, and gap analyses in Excel. Even cyber insurance providers require detailed Excel submissions for policy applications.
+
+GRC engineers who can bridge the technical-business divide — turning raw cloud API data into business-readable formats — become strategic contributors rather than just technical implementers. They reduce manual processing, satisfy both engineering and compliance stakeholders, and communicate fluently in both worlds.
+
+This lab is part of a broader **GRC Engineering** portfolio demonstrating exactly that: automating the repetitive work that slows compliance teams down, and delivering output that auditors can actually use the moment it lands in their inbox.
+
+---
+
+*Deployed and verified on AWS account `461115678308` · Report generated: `20260512_012424` · 21 findings processed*
